@@ -1,7 +1,6 @@
 package com.quickblox.sample.chat;
 
 import org.jivesoftware.smack.Chat;
-import org.jivesoftware.smack.ChatManager;
 import org.jivesoftware.smack.ChatManagerListener;
 import org.jivesoftware.smack.Connection;
 import org.jivesoftware.smack.ConnectionConfiguration;
@@ -12,6 +11,7 @@ import org.jivesoftware.smack.XMPPConnection;
 import org.jivesoftware.smack.XMPPException;
 import org.jivesoftware.smack.packet.Message;
 import org.jivesoftware.smack.packet.Packet;
+import org.jivesoftware.smackx.GroupChatInvitation;
 import org.jivesoftware.smackx.muc.MultiUserChat;
 
 import android.util.Log;
@@ -53,51 +53,57 @@ public class MyChatController {
     private String chatLogin;
     private String password;
     private String friendLogin;
+    
+	
 
-    private ChatManager chatManager;
+
+    //private ChatManager chatManager;
 
     public MyChatController(String chatLogin, String password) {
         this.chatLogin = chatLogin;
         this.password = password;
+		
     }
-
+    
+    
     public void startChat(String buddyLogin) {
         this.friendLogin = buddyLogin;
-
         new Thread(new Runnable() {
             @Override
             public void run() {
-                // Chat action 1 -- create connection.
+            	
+            	// Chat action 1 -- create connection.
+            	config = new ConnectionConfiguration(CHAT_SERVER);
+                Connection connection = new XMPPConnection(config);
                 Connection.DEBUG_ENABLED = true;
-                config = new ConnectionConfiguration(CHAT_SERVER);
-                connection = new XMPPConnection(config);
-
-                
                 try {
                 	connection.connect();
                 	 // Create a MultiUserChat using a Connection for a room
                 	connection.login(chatLogin, password);
                 	// Chat action 2 -- create chat manager.
-                    chatManager = connection.getChatManager();
-                	
+                    //chatManager = connection.getChatManager();
                     muc2 = new MultiUserChat(connection, "vanatur-2013@muc.chat.quickblox.com");
-
-                    // User2 joins the new room
+                    // Discover whether user3@host.org supports MUC or not
+                    
                     // The room service will decide the amount of history to send
                     muc2.join(chatLogin);
-                    
+                    muc2.invite(friendLogin, "Welcome!");
                     Log.d("friendLogin ->",friendLogin);
-                   
                     // Set listener for outcoming messages.
-                    chatManager.addChatListener(chatManagerListener);
+                    //chatManager.addChatListener(chatManagerListener);
                     muc2.addMessageListener(packetListener);
+                    addListenerToMuc(muc2);
                     
+                    Message message = new Message(friendLogin + "@chat.quickblox.com");
+                    message.setBody("Join me for a group chat!");
+                    message.addExtension(new GroupChatInvitation("room@chat.example.com"));
+                    connection.sendPacket(message);
                     
+                    //muc2.addMessageListener(listener);
+				
 				} catch (Exception e) {
 					e.printStackTrace();
 				}
-                
-                
                 
                 /*try {
                     connection.connect();
@@ -118,15 +124,34 @@ public class MyChatController {
                     e.printStackTrace();
                 }
                 */
-                
             }
         }).start();
     }
+    
+    
+    	
+    private void addListenerToMuc(MultiUserChat muc){
+        if(null != muc){
+            muc.addMessageListener(new PacketListener() {
+
+                @Override
+                public void processPacket(Packet packet) {
+                    Log.i("processPacket", "receiving message");
+                    }
+            });
+        }
+    }    
     
     PacketListener packetListener = new PacketListener() {
         @Override
         public void processPacket(Packet packet) {
           Message message = (Message)packet;
+          try {
+			muc2.sendMessage(message);
+		} catch (XMPPException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
           //System.out.println("got message " + message.toXML());
         }
 	};  
@@ -207,3 +232,4 @@ public class MyChatController {
         this.onMessageReceivedListener = onMessageReceivedListener;
     }
 }
+
